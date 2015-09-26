@@ -150,7 +150,10 @@ def MonomialMeasurementMatrices(m,d,pointSet,sampleSize):
     monValues = np.matrix(evaluateMonomialsAtPoints(Mons, pointSet)) #Rows are monomials, columns are the points    
     Results = []
     for _ in range(sampleSize):
-        SampleIndexSet = np.random.choice(len(Mons), m, replace=False)
+        if m<=len(Mons):
+            SampleIndexSet = np.random.choice(len(Mons), m, replace=False)
+        else:
+            SampleIndexSet=range(len(Mons))
         Results.append(monValues[SampleIndexSet])
     return Results
 
@@ -309,53 +312,30 @@ def computeDelta(squareSymmMatrix):
     eigV=np.linalg.eigvalsh(squareSymmMatrix)
     return max(1-np.min(eigV),np.max(eigV)-1)
 
+def DeltaKonRangeForVMatrix(d, pointSet, ListOfSizesk):
+    V = Vmatrix(d,pointSet)
+    Xs = []
+    Ys = []
+    for k in ListOfSizesk:        
+        Xs.append(k)
+        deltas = []
+        for mySet in subsets(k,V.shape[1],indices = True):
+            subMatrix = V[:,mySet]
+            subMatrix = subMatrix[mySet,:]
+            #pdb.set_trace()
+            deltas.append(computeDelta(subMatrix))
+        Ys.append(np.max(deltas))
+                
+    Results=[Xs,Ys]
+    return Results
+    
+
+
+
 def computeScalingFactor(squareSymmMatrix):
     #WARNING: This confers unfair advantage because if a constant 
     eigV=np.linalg.eigvalsh(squareSymmMatrix)
     return 2/(np.max(eigV)+np.min(eigV))
-
-
-    
-
-def Example1DeltaforPhiOnCircle(Ds, Ms, FigureFileName):
-    # We wish to sample on a regular grid in two dimensions
-    n = 2
-    pointSet = regularPointSampleCircle(10)
-    fig = plt.figure()
-    figCounter = 1
-    #We choose degree 50 for the mean to be in a somewhat interesting region
-    for d in Ds:#degree of the polynomials
-        for m in Ms:#number of measurements
-            # We choose the k`s we wish to study
-            SizesOfK = range(2,10)
-            # Next, we plot the delta of the theoretical mean V
-            VDeltas = []
-            for k in SizesOfK:
-                V=Vmatrix(d,pointSet[np.arange(k)])
-                #pdb.set_trace()
-                VDeltas.append(computeDelta(V))
-            #Creation of picture
-            sizes = np.full(len(SizesOfK), 100, dtype=int)
-        
-            #Next, we plot the deltas from our random sample, 50 measurement matrices at each point
-            PhimeasurementMatrices = PhiMeasurementMatrices(m, d, pointSet, 20)    
-            PhiDeltasData = DeltakonRangeForGivenMatrices(SizesOfK, PhimeasurementMatrices)
-            #Next, we renormalize the matrices
-            RescaledPhiMeasurementMatrices=[]
-            for A in PhimeasurementMatrices:
-                sF = computeScalingFactor(np.transpose(A)*A)
-                RescaledPhiMeasurementMatrices.append(math.sqrt(sF)*A)
-        
-            RescaledPhiDeltasData =  DeltakonRangeForGivenMatrices(SizesOfK, PhimeasurementMatrices) 
-        
-            #figure we want to return
-            fig.add_subplot(len(Ms),len(Ds),figCounter)
-            figCounter+=1
-            plt.title("m="+str(m)+" d="+str(d))
-            plt.scatter(PhiDeltasData[0],PhiDeltasData[1])
-            plt.scatter(SizesOfK,VDeltas, color = "red", s = sizes, alpha= 0.9)#Adds red theoretical mean of V to picture
-    plt.savefig(FigureFileName)
-    plt.show()
 
 
 def Example2DeltavsMonforPhiOnCircle():
@@ -372,7 +352,8 @@ def Example2DeltavsMonforPhiOnCircle():
     # Next, we plot the delta of the theoretical mean V
     VDeltas = []
     for k in SizesOfK:
-        V=Vmatrix(d,pointSet[np.arange(k)])
+        for indexSet in subsets(k, len(pointSet)):
+                V=Vmatrix(d,pointSet[np.arange(k)])
         #pdb.set_trace()
         VDeltas.append(computeDelta(V))
     #Creation of picture
@@ -399,19 +380,145 @@ def Example2DeltavsMonforPhiOnCircle():
     plt.show()
 
 
+    
+
+def Example1DeltaforPhiOnCircle(Ds, Ms, FigureFileName, compareWithMons=False):
+    # We wish to sample on a regular grid in two dimensions
+    n = 2
+    pointSet = regularPointSampleCircle(10)
+    fig = plt.figure()
+    figCounter = 1
+    #We choose degree 50 for the mean to be in a somewhat interesting region
+    for d in Ds:#degree of the polynomials
+        for m in Ms:#number of measurements
+            # We choose the k`s we wish to study
+            SizesOfK = range(2,10)
+            #Computation of the VDeltasData
+            VDeltasData = DeltaKonRangeForVMatrix(d, pointSet, SizesOfK)
+            
+            #Creation of picture
+            sizes = np.full(len(SizesOfK), 60, dtype=int)
+        
+            #Next, we plot the deltas from our random sample, 50 measurement matrices at each point
+            PhimeasurementMatrices = PhiMeasurementMatrices(m, d, pointSet, 20)    
+            PhiDeltasData = DeltakonRangeForGivenMatrices(SizesOfK, PhimeasurementMatrices)
+            #Next, we renormalize the matrices
+            RescaledPhiMeasurementMatrices=[]
+            for A in PhimeasurementMatrices:
+                sF = computeScalingFactor(np.transpose(A)*A)
+                RescaledPhiMeasurementMatrices.append(math.sqrt(sF)*A)
+        
+            RescaledPhiDeltasData =  DeltakonRangeForGivenMatrices(SizesOfK, PhimeasurementMatrices) 
+            
+            if compareWithMons:
+                #Next, we generate the monomial matrices
+                MonMeasurementMatrices = MonomialMeasurementMatrices(m,d,pointSet,20)
+                MonDeltasData = DeltakonRangeForGivenMatrices(SizesOfK, MonMeasurementMatrices)
+                RescaledMonMeasurementMatrices=[]
+                for A in MonMeasurementMatrices:
+                    sF = computeScalingFactor(np.transpose(A)*A)
+                    RescaledMonMeasurementMatrices.append(math.sqrt(sF)*A)
+                RescaledMonMeasurementsData = DeltakonRangeForGivenMatrices(SizesOfK, RescaledMonMeasurementMatrices)
+                
+            
+        
+            #figure we want to return
+            plt.subplot(len(Ms),len(Ds),figCounter)
+            figCounter+=1
+            plt.xlabel("m="+str(m)+"   "+"d="+str(d))
+            plt.plot(PhiDeltasData[0],PhiDeltasData[1], 'b^',markersize = 5)
+            plt.plot(VDeltasData[0],VDeltasData[1], "ro",markersize=8)
+            if compareWithMons:
+                plt.plot(RescaledMonMeasurementsData[0],RescaledMonMeasurementsData[1], "gs", markersize = 5)
+
+            #plt.scatter(PhiDeltasData[0],PhiDeltasData[1])
+            #plt.scatter(SizesOfK,VDeltas, color = "red", s = sizes, alpha= 0.9)#Adds red theoretical mean of V to picture
+    plt.savefig(FigureFileName)
+    plt.show()
 
 
-#TODO: Implement rescaling 2/(m+M) in the quadratic form.
+def Example2DeltaforPhiOnRandomSphere(n, Ds, Ms, FigureFileName, compareWithMons=False, rescaled = False):
+    # We wish to sample on a regular grid in two dimensions
+    pointSet = uniformPointSample(n, 10)
+    fig = plt.figure()
+    plt.rcParams.update({'font.size': 8})
+    figCounter = 1
+    #We choose degree 50 for the mean to be in a somewhat interesting region
+    for d in Ds:#degree of the polynomials
+        for m in Ms:#number of measurements
+            # We choose the k`s we wish to study
+            SizesOfK = range(2,10)
+            # Next, we create the deltas of the theoretical mean V
+            VDeltasData = DeltaKonRangeForVMatrix(d, pointSet, SizesOfK)
+            #Creation of picture
+        
+            #Next, we plot the deltas from our random sample, 50 measurement matrices at each point
+            PhimeasurementMatrices = PhiMeasurementMatrices(m, d, pointSet, 10)    
+            #PhiDeltasData = DeltakonRangeForGivenMatrices(SizesOfK, PhimeasurementMatrices)
+            #Next, we normalize the matrices
+            RescaledPhiMeasurementMatrices=[]
+            for A in PhimeasurementMatrices:
+                sF = computeScalingFactor(np.transpose(A)*A)
+                RescaledPhiMeasurementMatrices.append(math.sqrt(sF)*A)
+            
+            if rescaled:
+                RescaledPhiDeltasData =  DeltakonRangeForGivenMatrices(SizesOfK, RescaledPhiMeasurementMatrices) 
+            else:
+                RescaledPhiDeltasData =  DeltakonRangeForGivenMatrices(SizesOfK, PhimeasurementMatrices) 
+            
+            if compareWithMons:
+                #Next, we generate the monomial matrices
+                MonMeasurementMatrices = MonomialMeasurementMatrices(m,d,pointSet,10)
+                MonDeltasData = DeltakonRangeForGivenMatrices(SizesOfK, MonMeasurementMatrices)
+                RescaledMonMeasurementMatrices=[]
+                for A in MonMeasurementMatrices:
+                    sF = computeScalingFactor(np.transpose(A)*A)
+                    RescaledMonMeasurementMatrices.append(math.sqrt(sF)*A)
+                
+                RescaledMonMeasurementsData = DeltakonRangeForGivenMatrices(SizesOfK, RescaledMonMeasurementMatrices)
+                
+            
+        
+            #figure we want to return
+            plt.subplot(len(Ms),len(Ds),figCounter)
+            plt.xlabel("m="+str(m)+"   "+"d="+str(d))
+            plt.plot(RescaledPhiDeltasData[0],RescaledPhiDeltasData[1], 'b^',markersize = 5)
+            plt.plot(VDeltasData[0],VDeltasData[1], "ro",markersize=8)
 
-"PhiMeasurementMatrices_TestMean(n, numPoints, m, d, k, sampleSize)"
-#mean = PhiMeasurementMatrices_Mean(2, 6, 60, 20, 3, 10000)
+            if compareWithMons:
+                plt.plot(RescaledMonMeasurementsData[0],RescaledMonMeasurementsData[1], "gs", markersize = 5)
+
+            figCounter+=1
+
+            #plt.scatter(PhiDeltasData[0],PhiDeltasData[1])
+            #plt.scatter(SizesOfK,VDeltas, color = "red", s = sizes, alpha= 0.9)#Adds red theoretical mean of V to picture
+    plt.savefig(FigureFileName)
+
+
 
 
 #First example: Delta of randomized matrices on a uniformly spaced grid on the circle
+
+plt.rcParams.update({'font.size': 10})
 Ms=[50,200]
 Ds=[10,20]
-Example1DeltaforPhiOnCircle(Ds,Ms,"RandomizedDelta.pdf")
+Example1DeltaforPhiOnCircle(Ds,Ms,"RandomizedDeltaOnCircle.pdf",compareWithMons=True)
+print("Ejemplo 1 Listo")
 
+
+#Second example: Delta of randomized matrices on a random set of points in the 4-sphere
+Ms=[150,300]
+Ds=[8,15,20]
+Example2DeltaforPhiOnRandomSphere(4,Ds,Ms,"RandomizedDeltaOn4Sphere.pdf",compareWithMons=True, rescaled = False)
+print("Ejemplo 2 Listo")
+
+Ms=[150,300]
+Ds=[8,15,20]
+Example2DeltaforPhiOnRandomSphere(4,Ds,Ms,"RandomizedDeltaOn4SphereRescaled.pdf",compareWithMons=True, rescaled = True)
+print("Ejemplo 3 Listo")
+
+
+#TODO: Unificar el calculo de las deltas de V en los dos ejemplos, renormalizacion?
 
 
 """
