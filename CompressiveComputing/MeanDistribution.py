@@ -440,7 +440,7 @@ def Example1DeltaforPhiOnCircle(Ds, Ms, FigureFileName, compareWithMons=False):
 def Example2DeltaforPhiOnRandomSphere(n, Ds, Ms, FigureFileName, compareWithMons=False, rescaled = False):
     # We wish to sample on a regular grid in two dimensions
     pointSet = uniformPointSample(n, 10)
-    fig = plt.figure()
+    plt.figure()
     plt.rcParams.update({'font.size': 8})
     figCounter = 1
     #We choose degree 50 for the mean to be in a somewhat interesting region
